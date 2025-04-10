@@ -1,43 +1,63 @@
 FROM rockylinux:8
 
-LABEL org.opencontainers.image.source="https://github.com/giovtorres/slurm-docker-cluster" \
-      org.opencontainers.image.title="slurm-docker-cluster" \
-      org.opencontainers.image.description="Slurm Docker cluster on Rocky Linux 8" \
+LABEL org.opencontainers.image.source="https://github.com/yichengt900/slurm-docker-cluster" \
+      org.opencontainers.image.title="slurm-mom6-cluster" \
+      org.opencontainers.image.description="Slurm Docker cluster with MOM6 dependencies on Rocky Linux 8" \
       org.label-schema.docker.cmd="docker-compose up -d" \
-      maintainer="Giovanni Torres"
+      maintainer="Yi-Cheng Teng"
 
+# --- Base Setup and Dependencies ---
 RUN set -ex \
-    && yum makecache \
-    && yum -y update \
-    && yum -y install dnf-plugins-core \
-    && yum config-manager --set-enabled powertools \
-    && yum -y install \
-       wget \
-       bzip2 \
-       perl \
-       gcc \
-       gcc-c++\
-       git \
-       gnupg \
-       make \
-       munge \
-       munge-devel \
-       python3-devel \
-       python3-pip \
-       python3 \
-       mariadb-server \
-       mariadb-devel \
-       psmisc \
-       bash-completion \
-       vim-enhanced \
-       http-parser-devel \
-       json-c-devel \
-    && yum clean all \
-    && rm -rf /var/cache/yum
+    && dnf -y update \
+    && dnf -y install dnf-plugins-core \
+    && dnf config-manager --set-enabled powertools \
+    # Install EPEL first in its own layer
+    && dnf -y install epel-release \
+    # Clean cache BEFORE making a new one with EPEL enabled
+    && dnf clean all
+
+# Make cache AFTER EPEL is installed
+RUN dnf makecache
+
+# Group 1: Core build tools & Slurm deps (using dnf)
+RUN set -ex && dnf -y install \
+    wget bzip2 perl gcc gcc-c++ gcc-gfortran git gnupg make \
+    munge munge-devel python3-devel python3-pip \
+    mariadb-server mariadb-devel psmisc bash-completion \
+    vim-enhanced http-parser-devel json-c-devel
+
+# Group 2: MPI (using dnf)
+RUN set -ex && dnf -y install \
+    openmpi openmpi-devel
+
+# Group 3: NetCDF (using dnf - trying again now that EPEL should be active)
+RUN set -ex && dnf -y install \
+    netcdf netcdf-devel netcdf-fortran-devel
+
+# Group 4: Other Utils & Build tools (using dnf)
+RUN set -ex && dnf -y install \
+    curl tcsh autoconf automake libtool \
+    ImageMagick nco ncview 
+
+# Final cleanup
+RUN set -ex && dnf clean all \
+    && rm -rf /var/cache/dnf
 
 RUN alternatives --set python /usr/bin/python3
 
-RUN pip3 install Cython pytest
+RUN pip3 install --upgrade pip setuptools
+
+# Install build dependencies like Cython and Numpy first
+RUN pip3 install --no-cache-dir \
+    Cython \
+    numpy
+
+# Now install the rest of the packages
+RUN pip3 install --no-cache-dir \
+    pytest \
+    netCDF4 \
+    matplotlib \
+    xarray
 
 ARG GOSU_VERSION=1.17
 
@@ -64,7 +84,20 @@ RUN set -x \
     && install -D -m644 etc/slurmdbd.conf.example /etc/slurm/slurmdbd.conf.example \
     && install -D -m644 contribs/slurm_completion_help/slurm_completion.sh /etc/profile.d/slurm_completion.sh \
     && popd \
-    && rm -rf slurm \
+    && rm -rf slurm
+
+# --- Build and Install FRE-NCtools (from MOM6 Dockerfile, adapted) ---
+# Note: Installing system-wide instead of as 'builder' user for simplicity
+# Adjust paths and commands if necessary
+RUN mkdir -p /opt/build_fre && cd /opt/build_fre && git clone https://github.com/NOAA-GFDL/FRE-NCtools.git
+RUN cd /opt/build_fre/FRE-NCtools && autoreconf -ivf && mkdir build && cd build \
+    && ../configure --prefix=/usr/local \
+    && make && make install
+# Cleanup build directory
+RUN rm -rf /opt/build_fre
+
+# --- Slurm Configuration (from original Slurm Dockerfile) ---
+RUN set -x \
     && groupadd -r --gid=990 slurm \
     && useradd -r -g slurm --uid=990 slurm \
     && mkdir /etc/sysconfig/slurm \
