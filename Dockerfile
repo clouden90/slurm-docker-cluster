@@ -89,8 +89,11 @@ RUN set -x \
 # --- Build and Install FRE-NCtools (from MOM6 Dockerfile, adapted) ---
 # Note: Installing system-wide instead of as 'builder' user for simplicity
 # Adjust paths and commands if necessary
-RUN mkdir -p /opt/build_fre && cd /opt/build_fre && git clone https://github.com/NOAA-GFDL/FRE-NCtools.git
-RUN cd /opt/build_fre/FRE-NCtools && autoreconf -ivf && mkdir build && cd build \
+RUN mkdir -p /opt/build_fre && cd /opt/build_fre && git clone -b 2024.04 https://github.com/NOAA-GFDL/FRE-NCtools.git
+RUN cd /opt/build_fre/FRE-NCtools && autoreconf -i && mkdir build && cd build \
+    && export CPPFLAGS="-I/usr/include" \
+    && export LDFLAGS="-L/usr/lib64" \
+    && export FFLAGS="-I/usr/include" \
     && ../configure --prefix=/usr/local \
     && make && make install
 # Cleanup build directory
