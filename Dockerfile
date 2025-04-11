@@ -7,24 +7,34 @@ LABEL org.opencontainers.image.source="https://github.com/yichengt900/slurm-dock
       maintainer="Yi-Cheng Teng"
 
 # --- Base Setup and Dependencies ---
+#RUN set -ex \
+#    && dnf -y update \
+#    && dnf -y install dnf-plugins-core \
+#    && dnf config-manager --set-enabled powertools \
+#    # Install EPEL first in its own layer
+#    && dnf -y install epel-release \
+#    # Clean cache BEFORE making a new one with EPEL enabled
+#    && dnf clean all
+
+# Make cache AFTER EPEL is installed
+#RUN dnf makecache
+
 RUN set -ex \
     && dnf -y update \
     && dnf -y install dnf-plugins-core \
     && dnf config-manager --set-enabled powertools \
-    # Install EPEL first in its own layer
     && dnf -y install epel-release \
-    # Clean cache BEFORE making a new one with EPEL enabled
-    && dnf clean all
+    && dnf clean all && dnf makecache
 
-# Make cache AFTER EPEL is installed
-RUN dnf makecache
+RUN dnf -y install gcc-toolset-12
 
 # Group 1: Core build tools & Slurm deps (using dnf)
 RUN set -ex && dnf -y install \
-    wget bzip2 perl gcc gcc-c++ gcc-gfortran git gnupg make \
+    wget bzip2 perl git gnupg make \
     munge munge-devel python3-devel python3-pip \
     mariadb-server mariadb-devel psmisc bash-completion \
-    vim-enhanced http-parser-devel json-c-devel
+    vim-enhanced http-parser-devel json-c-devel \
+    environment-modules 
 
 # Group 2: MPI (using dnf)
 RUN set -ex && dnf -y install \
@@ -128,6 +138,9 @@ RUN set -x \
     && chown slurm:slurm /etc/slurm/slurmdbd.conf \
     && chmod 600 /etc/slurm/slurmdbd.conf
 
+RUN ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/gcc /usr/local/bin/gcc && \
+    ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/g++ /usr/local/bin/g++ && \
+    ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/gfortran /usr/local/bin/gfortran
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
