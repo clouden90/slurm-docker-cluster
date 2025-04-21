@@ -34,11 +34,14 @@ RUN set -ex && dnf -y install \
     munge munge-devel python3-devel python3-pip \
     mariadb-server mariadb-devel psmisc bash-completion \
     vim-enhanced http-parser-devel json-c-devel \
-    environment-modules 
+    environment-modules \
+    hwloc-devel \
+    libevent-devel \
+    pmix pmix-devel
 
 # Group 2: MPI (using dnf)
-RUN set -ex && dnf -y install \
-    openmpi openmpi-devel
+#RUN set -ex && dnf -y install \
+#    openmpi openmpi-devel
 
 # Group 3: NetCDF (using dnf - trying again now that EPEL should be active)
 RUN set -ex && dnf -y install \
@@ -52,6 +55,10 @@ RUN set -ex && dnf -y install \
 # Final cleanup
 RUN set -ex && dnf clean all \
     && rm -rf /var/cache/dnf
+
+RUN ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/gcc /usr/local/bin/gcc && \
+    ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/g++ /usr/local/bin/g++ && \
+    ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/gfortran /usr/local/bin/gfortran
 
 RUN alternatives --set python /usr/bin/python3
 
@@ -68,6 +75,21 @@ RUN pip3 install --no-cache-dir \
     netCDF4 \
     matplotlib \
     xarray
+
+# --- Build OpenMPI from source with Slurm & PMIx support ---
+ARG OMPI_VERSION=4.1.6
+
+RUN cd /opt && \
+    curl -LO https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI_VERSION}.tar.gz && \
+    tar -xzf openmpi-${OMPI_VERSION}.tar.gz && \
+    cd openmpi-${OMPI_VERSION} && \
+    ./configure --prefix=/usr/local \
+                --with-pmix=/usr \
+                --disable-static \
+                --enable-mpi-fortran && \
+    make -j$(nproc) && make install && ldconfig && \
+    cd / && rm -rf /opt/openmpi-${OMPI_VERSION}*
+
 
 ARG GOSU_VERSION=1.17
 
@@ -88,6 +110,7 @@ RUN set -x \
     && pushd slurm \
     && ./configure --enable-debug --prefix=/usr --sysconfdir=/etc/slurm \
         --with-mysql_config=/usr/bin  --libdir=/usr/lib64 \
+        --with-pmix \
     && make install \
     && install -D -m644 etc/cgroup.conf.example /etc/slurm/cgroup.conf.example \
     && install -D -m644 etc/slurm.conf.example /etc/slurm/slurm.conf.example \
@@ -138,9 +161,9 @@ RUN set -x \
     && chown slurm:slurm /etc/slurm/slurmdbd.conf \
     && chmod 600 /etc/slurm/slurmdbd.conf
 
-RUN ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/gcc /usr/local/bin/gcc && \
-    ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/g++ /usr/local/bin/g++ && \
-    ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/gfortran /usr/local/bin/gfortran
+RUN echo '#!/bin/bash' > /etc/profile.d/load_gcc_toolset.sh && \
+    echo 'source /etc/profile.d/modules.sh' >> /etc/profile.d/load_gcc_toolset.sh && \
+    chmod +x /etc/profile.d/load_gcc_toolset.sh
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -1,6 +1,5 @@
 services:
   mysql:
-    platform: linux/amd64
     image: mariadb:10.11
     hostname: mysql
     container_name: mysql
@@ -15,7 +14,6 @@ services:
       - slurm-network
 
   slurmdbd:
-    platform: linux/amd64
     image: slurm-docker-cluster:${IMAGE_TAG}
     build:
       context: .
@@ -36,7 +34,6 @@ services:
       - slurm-network
 
   slurmctld:
-    platform: linux/amd64
     image: slurm-docker-cluster:${IMAGE_TAG}
     command: ["slurmctld"]
     container_name: slurmctld
@@ -55,7 +52,6 @@ services:
       - slurm-network
 
   c1:
-    platform: linux/amd64
     image: slurm-docker-cluster:${IMAGE_TAG}
     command: ["slurmd"]
     hostname: c1
@@ -74,7 +70,6 @@ services:
       - slurm-network
 
   c2:
-    platform: linux/amd64
     image: slurm-docker-cluster:${IMAGE_TAG}
     command: ["slurmd"]
     hostname: c2
