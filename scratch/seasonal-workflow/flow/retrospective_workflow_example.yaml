@@ -1,0 +1,36 @@
+# conda activate uwtools
+# uw rocoto realize --config-file retrospective_workflow_example.yaml --output-file retrospective_workflow_example.xml
+# rocotorun -d retrospective_workflow_example.db -w retrospective_workflow_example.xml
+# rocotostat -d retrospective_workflow_Example.db -w retrospective_workflow_example.xml
+# or rocotoboot -d retrospective_workflow_example.db -w retrospective_workflow_example.xml -c all -t <TASK_TO_RUN>
+workflow:
+  attrs:
+    realtime: false
+    scheduler: slurm
+    cyclethrottle: 2
+  cycledef:
+    - attrs:
+        group: default
+      spec: "0 0 1 4 1994-1995 *"
+  log: 
+    cyclestr:
+      value: /scratch/seasonal-workflow/flow/log_@Y-@m.log
+  entities:
+    ANALYSIS_INPUT: /scratch/mom6/nwa12/analysis_input_data
+    FORECAST_INPUT: /scratch/mom6/nwa12/forecast_input_data
+    GAEA_INPUT: gaea:/gpfs/f6/ira-cefi/scratch/Yi-cheng.Teng/northwest_atlantic/nwa12_input
+    CONFIG: /scratch/seasonal-workflow/config_nwa12_cobalt.yaml
+    ENV_SETUP: "source /scratch/seasonal-workflow/flow/env_setup.sh;"
+    LOGS: /scratch/seasonal-workflow/logs
+  tasks:
+    task_write_spear_atmos:
+      attrs:
+        cycledefs: default
+        maxtries: 2
+      command: 
+        cyclestr:
+          value: "&ENV_SETUP; python write_spear_atmos_example.py -c &CONFIG; -y @Y -m @m"
+      partition: normal 
+      nodes: 1:ppn=1
+      walltime: 02:00:00
+      native: -D /scratch/seasonal-workflow --output=&LOGS;/spear_atmos_%j.out
