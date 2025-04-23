@@ -62,19 +62,45 @@ RUN ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/gcc /usr/local/bin/gcc && \
 
 RUN alternatives --set python /usr/bin/python3
 
-RUN pip3 install --upgrade pip setuptools
+#RUN pip3 install --upgrade pip setuptools
 
 # Install build dependencies like Cython and Numpy first
-RUN pip3 install --no-cache-dir \
-    Cython \
-    numpy
+#RUN pip3 install --no-cache-dir \
+#    Cython \
+#    numpy
 
 # Now install the rest of the packages
-RUN pip3 install --no-cache-dir \
-    pytest \
-    netCDF4 \
-    matplotlib \
-    xarray
+#RUN pip3 install --no-cache-dir \
+#    pytest \
+#    netCDF4 \
+#    matplotlib \
+#    xarray
+
+# Build CDO from source
+RUN cd /tmp && \
+    wget https://code.mpimet.mpg.de/attachments/download/29864/cdo-2.5.1.tar.gz && \
+    tar -xzf cdo-2.5.1.tar.gz && cd cdo-2.5.1 && \
+    ./configure --prefix=/usr/local && \
+    make -j$(nproc) && make install && \
+    cd / && rm -rf /tmp/cdo-2.5.1*
+
+# --- Install Miniconda ---
+ENV CONDA_DIR /opt/conda
+ENV PATH $CONDA_DIR/bin:$PATH
+
+RUN curl -sSL -o /tmp/miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh && \
+    bash /tmp/miniforge.sh -b -p $CONDA_DIR && \
+    rm /tmp/miniforge.sh && \
+    conda clean -afy
+
+# Copy the environment YAML
+COPY med_py311.yml /tmp/med_py311.yml
+
+# Create Conda environment
+RUN conda env create -f /tmp/med_py311.yml && conda clean -afy
+RUN conda create -y -n uwtools python=3.11 && \
+    conda run -n uwtools conda install -y -c ufs-community -c conda-forge --override-channels uwtools=2.7.0 && \
+    conda clean -afy
 
 # --- Build OpenMPI from source with Slurm & PMIx support ---
 ARG OMPI_VERSION=4.1.6
@@ -164,6 +190,28 @@ RUN set -x \
 RUN echo '#!/bin/bash' > /etc/profile.d/load_gcc_toolset.sh && \
     echo 'source /etc/profile.d/modules.sh' >> /etc/profile.d/load_gcc_toolset.sh && \
     chmod +x /etc/profile.d/load_gcc_toolset.sh
+
+# Make conda available in all shells
+RUN /opt/conda/bin/conda init bash
+
+# Install xz and enable Ruby 3.3 module
+RUN dnf install -y xz && \
+    dnf module list ruby && \
+    dnf module enable -y ruby:3.3 && \
+    dnf install -y ruby ruby-devel && \
+    dnf clean all
+
+# Verify installation
+RUN ruby -v && gem -v
+
+# Install Rocoto under /opt
+WORKDIR /opt
+RUN git clone -b 1.3.7 https://github.com/christopherwharrop/rocoto.git --recursive && \
+    cd rocoto && \
+    bash INSTALL
+
+# Add Rocoto's bin path to system PATH
+ENV PATH="/opt/rocoto/bin:${PATH}"
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
