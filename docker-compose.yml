@@ -63,6 +63,7 @@ services:
       - slurm_jobdir:/data
       - var_log_slurm:/var/log/slurm
       - ./scratch:/scratch
+      - ./archive:/archive
     expose:
       - "6818"
     depends_on:
@@ -81,6 +82,7 @@ services:
       - slurm_jobdir:/data
       - var_log_slurm:/var/log/slurm
       - ./scratch:/scratch
+      - ./archive:/archive
     expose:
       - "6818"
     depends_on:

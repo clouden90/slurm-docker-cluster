@@ -80,7 +80,9 @@ RUN alternatives --set python /usr/bin/python3
 RUN cd /tmp && \
     wget https://code.mpimet.mpg.de/attachments/download/29864/cdo-2.5.1.tar.gz && \
     tar -xzf cdo-2.5.1.tar.gz && cd cdo-2.5.1 && \
-    ./configure --prefix=/usr/local && \
+    ./configure --prefix=/usr/local \
+                --with-netcdf=/usr \
+                --with-hdf5=/usr && \
     make -j$(nproc) && make install && \
     cd / && rm -rf /tmp/cdo-2.5.1*
 
