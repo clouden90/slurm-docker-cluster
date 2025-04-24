@@ -1,4 +1,59 @@
-# Slurm Docker Cluster
+# Slurm Docker Cluster with simple rocoto workflow example
+
+## How to run simple example
+
+Clone the repo:
+```bash
+git clone -b fun https://github.com/clouden90/slurm-docker-cluster.git
+```
+
+## Download the example data and create empty folders
+```bash
+cd slurm-docker-cluster
+mkdir -p scratch/mom6/nwa12/forecast_input_data
+mkdir -p scratch/seasonal-workflow/logs
+mkdir -p scratch/nwa12/setup
+wget -r -np -nH --cut-dirs=4 -A ".nc" ftp://ftp.gfdl.noaa.gov/pub/Yi-cheng.Teng/nwa12/setup/grid/ -P scratch/nwa12/setup/
+mkdir -p scratch/spear
+wget ftp://ftp.gfdl.noaa.gov/pub/Yi-cheng.Teng/spear/atmos.static.nc -P scratch/spear/ 
+wget ftp://ftp.gfdl.noaa.gov/pub/Yi-cheng.Teng/spear_data_backup.tar.gz
+tar -zxvf spear_data_backup.tar.gz
+```
+
+## build Slurm Docker Cluster Image
+```bash
+docker compose build
+```
+
+## Starting the Cluster
+```bash
+docker compose up -d
+```
+
+## Accessing the Cluster
+```bash
+docker exec -it slurmctld bash
+```
+
+## Try simple rocoto workflow
+```bash
+cd /scratch/seasonal-workflow/flow
+conda activate uwtools
+uw rocoto realize --config-file retrospective_workflow_example.yaml --output-file retrospective_workflow_example.xml
+rocotorun -d retrospective_workflow_example.db -w retrospective_workflow_example.xml
+rocotostat -d retrospective_workflow_Example.db -w retrospective_workflow_example.xml
+```
+Repeat rocotorun and rocotostat and you should see the following:
+```bash
+(uwtools) [root@slurmctld flow]# rocotostat -d retrospective_workflow_Example.db -w retrospective_workflow_example.xml
+       CYCLE                    TASK                       JOBID               STATE         EXIT STATUS     TRIES      DURATION
+================================================================================================================================
+199404010000       write_spear_atmos                           7           SUCCEEDED                   0         1           6.0
+================================================================================================================================
+199504010000       write_spear_atmos                           8           SUCCEEDED                   0         1           6.0
+```
+
+
 
 **Slurm Docker Cluster** is a multi-container Slurm cluster designed for rapid
 deployment using Docker Compose. This repository simplifies the process of
